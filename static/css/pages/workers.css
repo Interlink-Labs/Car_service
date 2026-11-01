@@ -1,0 +1,185 @@
+/* =========================================================================
+   pages/workers.css — стили раздела «Сотрудники» (worker_dir)
+   ========================================================================= */
+
+.workers-page { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* ---------- ТАБЛИЦА СОТРУДНИКОВ ---------- */
+.workers-table .cell-id {
+    width: 64px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.workers-table .cell-person {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+
+.workers-table .person-info { min-width: 0; }
+.workers-table .person-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.workers-table .person-sub {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.workers-table .role-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.workers-table .role-cell .role-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.workers-table .actions-cell {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+/* ---------- ФИЛЬТРЫ ---------- */
+.workers-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chip {
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    transition: all var(--t-fast) var(--ease);
+}
+
+.chip:hover { border-color: var(--border-base); color: var(--text-primary); }
+
+.chip.is-active {
+    background: var(--accent-soft);
+    border-color: transparent;
+    color: var(--accent);
+}
+
+/* ---------- ФОРМА СОТРУДНИКА ---------- */
+.worker-form { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.role-picker {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--sp-2);
+}
+
+.role-picker .field { flex: 1 1 auto; }
+
+/* Подсказка под полем роли */
+.role-hint {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* ---------- СТАТИСТИКА ПО РОЛЯМ ---------- */
+.role-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4) var(--sp-4);
+}
+
+.role-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 6px 12px;
+    border-radius: var(--r-pill);
+    background: var(--bg-surface-2);
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+}
+
+.role-stat b {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+@media (max-width: 720px) {
+    .workers-table .cell-hide-sm { display: none; }
+    .table-toolbar .table-meta { display: none; }
+}
+/* =========================================================================
+   Общие элементы карточек данных (клиенты, автомобили)
+   ========================================================================= */
+
+/* Две колонки в форме модалки */
+.field-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-3);
+}
+
+@media (max-width: 560px) {
+    .field-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Квадратный аватар с иконкой вместо инициалов */
+.avatar-square {
+    border-radius: var(--r-md);
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+}
+
+/* Госномер — моноширинный «номерной знак» */
+.plate {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-soft);
+}
+
+.link-phone {
+    color: var(--text-primary);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--border-base);
+}
+
+.link-phone:hover { color: var(--accent); border-color: var(--accent); }
+
+.muted { color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* Компактный список внутри модалки */
+.mini-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.mini-list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-soft);
+}

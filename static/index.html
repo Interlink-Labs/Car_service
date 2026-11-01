@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Автосервис — панель управления</title>
+
+    <!-- Порядок важен: переменные и сброс → сетка → компоненты → стили страниц -->
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/pages/dashboard.css">
+    <link rel="stylesheet" href="/static/css/pages/workers.css">
+
+    <!-- Тема до первой отрисовки: убирает вспышку светлого фона -->
+    <script>
+        document.documentElement.dataset.theme = localStorage.getItem('as_theme') || 'dark';
+    </script>
+</head>
+<body>
+    <div id="app" class="app-shell" data-state="booting">
+
+        <!-- Сайдбар: рендерится js/components/sidebar.js -->
+        <aside id="sidebar-root" class="app-sidebar" aria-label="Основная навигация"></aside>
+
+        <div class="app-main">
+            <!-- Шапка: js/components/topbar.js -->
+            <header id="topbar-root" class="app-topbar"></header>
+
+            <!-- Сюда роутер монтирует страницу (dashboard / workers / ...) -->
+            <main id="page-root" class="app-content" role="main" aria-live="polite"></main>
+        </div>
+
+        <!-- Слой модальных окон: js/components/modal.js -->
+        <div id="modal-root" class="modal-layer" aria-hidden="true"></div>
+
+        <!-- Слой уведомлений: js/components/toast.js -->
+        <div id="toast-root" class="toast-layer" aria-live="polite"></div>
+
+        <!-- Экран авторизации: js/components/auth.js -->
+        <div id="auth-root"></div>
+
+        <!-- Прелоадер до готовности приложения -->
+        <div id="boot-screen" class="boot-screen">
+            <div class="boot-spinner"></div>
+            <p class="text-muted">Загрузка системы…</p>
+        </div>
+    </div>
+
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
