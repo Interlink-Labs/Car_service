@@ -13,7 +13,7 @@ from typing import Any
 from database import connect, transaction
 
 WORKER_COLUMNS = "id, name, role, access_level, created_at, updated_at"
-USER_COLUMNS = "id, username, name, role_code, is_active, created_at"
+USER_COLUMNS = "id, username, name, role_code, is_active, client_id, created_at"
 
 
 # ------------------------------------------------------------- сотрудники ----
@@ -92,9 +92,18 @@ def delete_worker(worker_id: int) -> dict[str, Any] | None:
 
 # ------------------------------------------------------------------ роли ----
 
-def list_roles() -> list[dict[str, str]]:
+def list_roles() -> list[dict[str, Any]]:
+    """Роли + число учётных записей на каждой (для экрана «Доступы»)."""
     with connect() as conn:
-        rows = conn.execute("SELECT code AS value, label FROM roles ORDER BY id").fetchall()
+        rows = conn.execute(
+            """
+            SELECT roles.code AS value, roles.label,
+                   (SELECT COUNT(*) FROM users WHERE users.role_code = roles.code) AS users_count
+              FROM roles
+             ORDER BY CASE roles.code WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'mechanic' THEN 2 ELSE 3 END,
+                      roles.label
+            """
+        ).fetchall()
     return [dict(row) for row in rows]
 
 
@@ -103,10 +112,10 @@ def role_exists(code: str) -> bool:
         return (conn.execute("SELECT 1 FROM roles WHERE code = ?", (code,)).fetchone() is not None)
 
 
-def create_role(code: str, label: str) -> dict[str, str]:
+def create_role(code: str, label: str) -> dict[str, Any]:
     with transaction() as conn:
         conn.execute("INSERT INTO roles (code, label) VALUES (?, ?)", (code, label))
-    return {"value": code, "label": label}
+    return {"value": code, "label": label, "users_count": 0}
 
 
 # --------------------------------------------------------- пользователи ----
@@ -115,7 +124,7 @@ def find_user(username: str) -> dict[str, Any] | None:
     """Полная запись с хешем пароля — только для проверки входа."""
     with connect() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, name, role_code, is_active"
+            "SELECT id, username, password_hash, name, role_code, is_active, client_id"
             "  FROM users WHERE username = ?",
             (username,),
         ).fetchone()
@@ -154,11 +163,11 @@ def list_users(search: str | None = None, role: str | None = None) -> list[dict[
     return [dict(row) for row in rows]
 
 
-def create_user(username: str, password_hash: str, name: str, role_code: str = "manager") -> dict[str, Any]:
+def create_user(username: str, password_hash: str, name: str, role_code: str = "manager", client_id: int | None = None) -> dict[str, Any]:
     with transaction() as conn:
         cursor = conn.execute(
-            "INSERT INTO users (username, password_hash, name, role_code) VALUES (?, ?, ?, ?)",
-            (username, password_hash, name, role_code),
+            "INSERT INTO users (username, password_hash, name, role_code, client_id) VALUES (?, ?, ?, ?, ?)",
+            (username, password_hash, name, role_code, client_id),
         )
         row = conn.execute(
             f"SELECT {USER_COLUMNS} FROM users WHERE id = ?", (cursor.lastrowid,)
@@ -168,7 +177,7 @@ def create_user(username: str, password_hash: str, name: str, role_code: str = "
 
 def update_user(user_id: int, **fields: Any) -> dict[str, Any] | None:
     """Обновить только переданные поля: name, role_code, password_hash, is_active."""
-    allowed = {"name", "role_code", "password_hash", "is_active"}
+    allowed = {"name", "role_code", "password_hash", "is_active", "client_id"}
     changes = {key: value for key, value in fields.items() if key in allowed and value is not None}
     if not changes:
         return get_user(user_id)
@@ -215,7 +224,7 @@ def accounts_stats() -> dict[str, int]:
             "SELECT role_code, COUNT(*) AS count FROM users GROUP BY role_code"
         ).fetchall()
 
-    stats = {"total": total, "blocked": blocked}
+    stats = {"total": total, "blocked": blocked, "admins": 0, "managers": 0, "mechanics": 0}
     for row in rows:
         stats[row["role_code"]] = row["count"]
     return stats

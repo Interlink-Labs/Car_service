@@ -10,9 +10,10 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from database.seed import hash_password, verify_password
+from clients_dir import repository as clients_repo
 from .schemas import (
     Account,
     AccountCreate,
@@ -22,7 +23,7 @@ from .schemas import (
     RegisterRequest,
     RoleCreate,
     RoleSchema,
-    UserCredentials,
+    LoginRequest,
     UserSession,
     Worker,
     WorkerCreate,
@@ -30,6 +31,7 @@ from .schemas import (
     WorkersStats,
 )
 from . import repository as repo
+from .auth import admin_required, create_token, employee_required, manager_required, read_required
 
 router = APIRouter(prefix="/workers", tags=["Сотрудники"])
 
@@ -56,7 +58,7 @@ def _slugify(label: str) -> str:
 # ------------------------------------------------------------ авторизация ----
 
 @router.post(f"{API}/auth/login", response_model=AuthResponse, summary="Вход в систему")
-def login(credentials: UserCredentials) -> AuthResponse:
+def login(credentials: LoginRequest, response: Response) -> AuthResponse:
     user = repo.find_user(credentials.username)
 
     # Сообщение одинаковое для «нет пользователя» и «неверный пароль»:
@@ -73,13 +75,18 @@ def login(credentials: UserCredentials) -> AuthResponse:
             detail="Доступ к учётной записи отключён администратором",
         )
 
+    # Разрешаем фронтенду читать роль в ответе при любом CORS-сценарии
+    response.headers["X-User-Role"] = user["role_code"]
+
     return AuthResponse(
         status="authenticated",
         user=UserSession(
             username=user["username"],
             name=user["name"] or user["username"],
             role=user["role_code"],
+            client_id=user.get("client_id"),
         ),
+        token=create_token(user),
     )
 
 
@@ -98,16 +105,24 @@ def register(payload: RegisterRequest) -> AuthResponse:
         )
 
     display_name = payload.name or payload.username.capitalize()
+    client_id = None
+    if payload.phone:
+        client = clients_repo.find_by_phone(payload.phone)
+        if client is None:
+            client = clients_repo.create_client({'full_name': display_name, 'phone': payload.phone})
+        client_id = client['id']
     repo.create_user(
         username=payload.username,
         password_hash=hash_password(payload.password),
         name=display_name,
         role_code=payload.role,
+        client_id=client_id,
     )
 
     return AuthResponse(
         status="registered",
-        user=UserSession(username=payload.username, name=display_name, role=payload.role),
+        user=UserSession(username=payload.username, name=display_name, role=payload.role, client_id=client_id),
+        token=create_token(repo.find_user(payload.username)),
     )
 
 
@@ -125,18 +140,19 @@ def _ensure_role(role_code: str) -> None:
 def list_accounts(
     search: str | None = Query(None, description="Поиск по логину или имени"),
     role: str | None = Query(None, description="Фильтр по роли"),
+    _user: dict = Depends(admin_required),
 ) -> list[Account]:
     return [Account(**_account(row)) for row in repo.list_users(search, role)]
 
 
 @router.get(f"{API}/user/stats", response_model=AccountsStats, summary="Сводка по доступам")
-def accounts_stats() -> AccountsStats:
+def accounts_stats(_user: dict = Depends(admin_required)) -> AccountsStats:
     return AccountsStats(**repo.accounts_stats())
 
 
 @router.post(f"{API}/user", response_model=Account, status_code=status.HTTP_201_CREATED,
              summary="Создать доступ (администратор)")
-def create_account(payload: AccountCreate) -> Account:
+def create_account(payload: AccountCreate, _user: dict = Depends(admin_required)) -> Account:
     if repo.find_user(payload.username) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -149,12 +165,13 @@ def create_account(payload: AccountCreate) -> Account:
         password_hash=hash_password(payload.password),
         name=payload.name or payload.username.capitalize(),
         role_code=payload.role,
+        client_id=None,
     )
     return Account(**_account(created))
 
 
 @router.put(f"{API}/user/{{user_id}}", response_model=Account, summary="Изменить доступ")
-def update_account(user_id: int, payload: AccountUpdate) -> Account:
+def update_account(user_id: int, payload: AccountUpdate, _user: dict = Depends(admin_required)) -> Account:
     current = repo.get_user(user_id)
     if current is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Учётная запись не найдена")
@@ -183,7 +200,7 @@ def update_account(user_id: int, payload: AccountUpdate) -> Account:
 
 
 @router.delete(f"{API}/user/{{user_id}}", response_model=Account, summary="Удалить доступ")
-def delete_account(user_id: int) -> Account:
+def delete_account(user_id: int, _user: dict = Depends(admin_required)) -> Account:
     current = repo.get_user(user_id)
     if current is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Учётная запись не найдена")
@@ -208,19 +225,20 @@ def _account(row: dict) -> dict:
         "name": row["name"] or row["username"],
         "role": row["role_code"],
         "is_active": bool(row.get("is_active", 1)),
+        "client_id": row.get("client_id"),
     }
 
 
 # ------------------------------------------------------------------ роли ----
 
 @router.get(f"{API}/roles", response_model=list[RoleSchema], summary="Список ролей доступа")
-def list_roles() -> list[RoleSchema]:
+def list_roles(_user: dict = Depends(read_required)) -> list[RoleSchema]:
     return [RoleSchema(**role) for role in repo.list_roles()]
 
 
 @router.post(f"{API}/role", response_model=RoleSchema, status_code=status.HTTP_201_CREATED,
              summary="Создать роль (администратор)")
-def create_role(payload: RoleCreate) -> RoleSchema:
+def create_role(payload: RoleCreate, _user: dict = Depends(admin_required)) -> RoleSchema:
     code = (payload.value or _slugify(payload.label)).strip().lower()
 
     if repo.role_exists(code):
@@ -238,17 +256,18 @@ def create_role(payload: RoleCreate) -> RoleSchema:
 def list_workers(
     search: str | None = Query(None, description="Поиск по ФИО, специализации, роли"),
     access_level: str | None = Query(None, description="Фильтр по коду роли"),
+    _user: dict = Depends(read_required),
 ) -> list[Worker]:
     return [Worker(**worker) for worker in repo.list_workers(search, access_level)]
 
 
 @router.get(f"{API}/worker/stats", response_model=WorkersStats, summary="Сводка по сотрудникам")
-def workers_stats() -> WorkersStats:
+def workers_stats(_user: dict = Depends(read_required)) -> WorkersStats:
     return WorkersStats(**repo.workers_stats())
 
 
 @router.get(f"{API}/worker/{{worker_id}}", response_model=Worker, summary="Карточка сотрудника")
-def get_worker(worker_id: int) -> Worker:
+def get_worker(worker_id: int, _user: dict = Depends(read_required)) -> Worker:
     worker = repo.get_worker(worker_id)
     if worker is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
@@ -257,12 +276,12 @@ def get_worker(worker_id: int) -> Worker:
 
 @router.post(f"{API}/worker", response_model=Worker, status_code=status.HTTP_201_CREATED,
              summary="Добавить сотрудника")
-def create_worker(payload: WorkerCreate) -> Worker:
+def create_worker(payload: WorkerCreate, _user: dict = Depends(manager_required)) -> Worker:
     return Worker(**repo.create_worker(payload.name, payload.role, payload.access_level))
 
 
 @router.put(f"{API}/worker/{{worker_id}}", response_model=Worker, summary="Изменить сотрудника")
-def update_worker(worker_id: int, payload: WorkerUpdate) -> Worker:
+def update_worker(worker_id: int, payload: WorkerUpdate, _user: dict = Depends(manager_required)) -> Worker:
     worker = repo.update_worker(worker_id, payload.name, payload.role, payload.access_level)
     if worker is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
@@ -270,7 +289,7 @@ def update_worker(worker_id: int, payload: WorkerUpdate) -> Worker:
 
 
 @router.delete(f"{API}/worker/{{worker_id}}", response_model=Worker, summary="Удалить сотрудника")
-def delete_worker(worker_id: int) -> Worker:
+def delete_worker(worker_id: int, _user: dict = Depends(admin_required)) -> Worker:
     worker = repo.delete_worker(worker_id)
     if worker is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")

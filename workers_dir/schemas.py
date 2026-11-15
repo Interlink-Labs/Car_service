@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -51,6 +52,7 @@ class WorkersStats(BaseModel):
 class RoleSchema(BaseModel):
     value: str
     label: str
+    users_count: int = 0
 
 
 class RoleCreate(BaseModel):
@@ -66,27 +68,44 @@ class RoleCreate(BaseModel):
         return cleaned
 
 
-class UserCredentials(BaseModel):
-    username: str = Field(..., min_length=3, max_length=40)
-    password: str = Field(..., min_length=4, max_length=72)
+LOGIN_RE = re.compile(r"^[a-z0-9_.-]{3,40}$")
+
+
+class LoginRequest(BaseModel):
+    """Вход: без ограничений на длину пароля.
+
+    Проверять min_length на входе нельзя — на неверный пароль сервер вернёт
+    422 «слишком короткий» вместо честного 401 «неверный логин или пароль».
+    """
+
+    username: str = Field(..., min_length=1, max_length=40)
+    password: str = Field(..., min_length=1, max_length=72)
 
     @field_validator("username")
     @classmethod
-    def strip_username(cls, value: str) -> str:
-        cleaned = value.strip().lower()
-        if not cleaned.replace("_", "").replace(".", "").replace("-", "").isalnum():
-            raise ValueError("Логин: только латиница, цифры, «_», «.» и «-»")
-        return cleaned
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().lower()
 
 
-class RegisterRequest(UserCredentials):
-    """Самостоятельная регистрация: только «рядовые» роли.
+class RegisterRequest(BaseModel):
+    """Самостоятельная регистрация рядового пользователя или сотрудника.
 
-    Администратора может создать только администратор через раздел «Доступы».
+    Администратора создаёт только администратор в разделе «Доступы».
     """
 
+    username: str = Field(..., min_length=3, max_length=40)
+    password: str = Field(..., min_length=4, max_length=72)
     name: Optional[str] = Field(None, max_length=120, description="ФИО или отображаемое имя")
-    role: Literal["mechanic", "manager"] = Field("mechanic", description="Роль при регистрации")
+    phone: str = Field(..., min_length=7, max_length=20, description="Телефон клиента")
+    role: Literal["user"] = Field("user", description="Начальная роль нового пользователя")
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if not LOGIN_RE.match(cleaned):
+            raise ValueError("Логин: 3–40 символов, только латиница, цифры, «_», «.» и «-»")
+        return cleaned
 
     @field_validator("name")
     @classmethod
@@ -101,11 +120,13 @@ class UserSession(BaseModel):
     username: str
     name: str
     role: str
+    client_id: int | None = None
 
 
 class AuthResponse(BaseModel):
     status: Literal["authenticated", "registered"]
     user: UserSession
+    token: str
 
 
 # ------------------------------------------------------- учётные записи ----
@@ -160,6 +181,7 @@ class Account(BaseModel):
     name: str
     role: str
     is_active: bool = True
+    client_id: int | None = None
 
 
 class AccountsStats(BaseModel):
