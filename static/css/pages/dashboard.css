@@ -1,0 +1,33 @@
+/* Главный экран сохраняет тёмную тему и бирюзовые акценты общего дизайна. */
+.hero { position: relative; display: flex; align-items: center; gap: var(--sp-6); flex-wrap: wrap; padding: var(--sp-6); margin-bottom: var(--sp-5); border-radius: var(--r-lg); border: 1px solid var(--border-soft); background: radial-gradient(600px 240px at 100% 0%, var(--accent-soft), transparent 65%), var(--bg-surface); overflow: hidden; }
+.hero-text { min-width: 0; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; margin-bottom: var(--sp-3); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.hero-title { font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; margin-bottom: var(--sp-2); }
+.hero-subtitle { max-width: 620px; color: var(--text-secondary); font-size: var(--fs-sm); }
+.hero-actions { margin-left: auto; display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5); }
+.dashboard-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+.module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-3); padding: var(--sp-4); }
+.module-card { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border: 1px solid var(--border-soft); border-radius: var(--r-sm); background: var(--bg-surface-2); color: var(--text-primary); }
+.module-card svg { color: var(--accent); }
+.module-name { font-weight: 650; font-size: var(--fs-sm); }
+.module-desc { color: var(--text-muted); font-size: var(--fs-xs); }
+.module-status { margin-top: auto; color: var(--accent); font-size: 10px; text-transform: uppercase; }
+
+/* Ролевые блоки дашборда используют общие токены приложения. */
+.dashboard-section { min-width: 0; }
+.dashboard-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--sp-3); padding: var(--sp-4); }
+.dashboard-mini-card { display: grid; grid-template-columns: auto 1fr; column-gap: var(--sp-3); row-gap: 3px; padding: var(--sp-4); border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--bg-surface-2); }
+.dashboard-mini-card strong { color: var(--text-primary); }
+.dashboard-mini-card span { color: var(--text-muted); font-size: var(--fs-xs); }
+.dashboard-mini-icon { grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm); color: var(--accent); background: var(--accent-soft); }
+.dashboard-request-list, .dashboard-task-list, .dashboard-team-list, .dashboard-system-list, .dashboard-capacity { display: flex; flex-direction: column; gap: 1px; padding: var(--sp-3); }
+.dashboard-request-row, .dashboard-task-row, .dashboard-team-row, .capacity-item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); background: var(--bg-surface-2); }
+.dashboard-request-row > div:first-child, .dashboard-task-row > div:first-child, .dashboard-team-row > strong { min-width: 0; flex: 1; }
+.dashboard-request-row span, .dashboard-task-row span, .dashboard-team-row span { display: block; color: var(--text-muted); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-request-row > strong, .dashboard-task-row > strong { white-space: nowrap; color: var(--text-primary); }
+.dashboard-task-row .actions-cell { display: flex; gap: var(--sp-2); }
+.dashboard-search-action { padding: var(--sp-4); }
+.capacity-item { justify-content: space-between; }
+.capacity-item strong { color: var(--text-secondary); }
+@media (max-width: 700px) { .dashboard-request-row, .dashboard-task-row { align-items: flex-start; flex-wrap: wrap; } .dashboard-request-row > div:first-child, .dashboard-task-row > div:first-child { flex-basis: calc(100% - 16px); } }

@@ -1,0 +1,13 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+
+# База данных (создаётся автоматически при первом запуске)
+data/
+
+# Служебное
+.THROWAWAY
+*.log
+.DS_Store
+Thumbs.db

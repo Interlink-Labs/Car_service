@@ -1,0 +1,97 @@
+/* =========================================================================
+   pages/accounts.css — раздел «Доступы» (учётные записи и роли)
+   ========================================================================= */
+
+/* ---------- таблица ---------- */
+.workers-table .cell-id {
+    width: 64px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.worker-name {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.worker-sub {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.workers-table tbody tr.is-muted { opacity: 0.55; }
+
+/* ---------- статус «доступ открыт / отключён» ---------- */
+.status-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.status-dot-mark {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--r-pill);
+    background: currentColor;
+}
+
+.status-dot.is-online { color: var(--success, #2dd4bf); }
+.status-dot.is-offline { color: var(--danger); }
+
+/* ---------- роли ---------- */
+.roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+}
+
+.role-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--sp-4);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-soft);
+    background: var(--bg-surface-2);
+}
+
+.role-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+}
+
+.role-card-title { font-weight: 600; }
+
+.role-card-count {
+    min-width: 24px;
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-align: center;
+}
+
+.role-card-desc {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.role-card-code {
+    align-self: flex-start;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+}
