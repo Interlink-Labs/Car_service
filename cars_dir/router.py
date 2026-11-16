@@ -9,7 +9,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from workers_dir.auth import client_car_write_required, manager_required, read_required
 
 from . import repository as repo
 from .schemas import Car, CarCreate, CarsStats, CarUpdate
@@ -23,18 +24,25 @@ API = "/api/v1"
 def list_cars(
     search: str | None = Query(None, description="Поиск по VIN, госномеру, марке, модели, владельцу"),
     client_id: int | None = Query(None, description="Только авто конкретного клиента"),
+    _user: dict = Depends(read_required),
 ) -> list[Car]:
+    if _user['role_code'] == 'user':
+        client_id = _user.get('client_id')
+        if not client_id:
+            return []
     return [Car(**row) for row in repo.list_cars(search, client_id)]
 
 
 @router.get(f"{API}/car/stats", response_model=CarsStats, summary="Сводка по автопарку")
-def cars_stats() -> CarsStats:
+def cars_stats(_user: dict = Depends(read_required)) -> CarsStats:
     return CarsStats(**repo.cars_stats())
 
 
 @router.get(f"{API}/car/{{car_id}}", response_model=Car, summary="Карточка автомобиля")
-def get_car(car_id: int) -> Car:
+def get_car(car_id: int, _user: dict = Depends(read_required)) -> Car:
     car = repo.get_car(car_id)
+    if _user['role_code'] == 'user' and (not car or car.get('client_id') != _user.get('client_id')):
+        raise HTTPException(status_code=403, detail='Нет доступа к этому автомобилю')
     if car is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Автомобиль не найден")
     return Car(**car)
@@ -78,7 +86,11 @@ def _check_plate_conflict(plate: str | None, exclude_id: int | None = None) -> N
 
 @router.post(f"{API}/car", response_model=Car, status_code=status.HTTP_201_CREATED,
              summary="Добавить автомобиль")
-def create_car(payload: CarCreate) -> Car:
+def create_car(payload: CarCreate, _user: dict = Depends(client_car_write_required)) -> Car:
+    if _user['role_code'] == 'user':
+        payload.client_id = _user.get('client_id')
+        if not payload.client_id:
+            raise HTTPException(status_code=422, detail='К аккаунту не привязана карточка клиента')
     _check_owner(payload.client_id)
     _check_vin_conflict(payload.vin)
     _check_plate_conflict(payload.plate)
@@ -86,7 +98,7 @@ def create_car(payload: CarCreate) -> Car:
 
 
 @router.put(f"{API}/car/{{car_id}}", response_model=Car, summary="Изменить автомобиль")
-def update_car(car_id: int, payload: CarUpdate) -> Car:
+def update_car(car_id: int, payload: CarUpdate, _user: dict = Depends(manager_required)) -> Car:
     _check_owner(payload.client_id)
     _check_vin_conflict(payload.vin, exclude_id=car_id)
     _check_plate_conflict(payload.plate, exclude_id=car_id)
@@ -98,7 +110,7 @@ def update_car(car_id: int, payload: CarUpdate) -> Car:
 
 
 @router.delete(f"{API}/car/{{car_id}}", response_model=Car, summary="Удалить автомобиль")
-def delete_car(car_id: int) -> Car:
+def delete_car(car_id: int, _user: dict = Depends(manager_required)) -> Car:
     car = repo.delete_car(car_id)
     if car is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Автомобиль не найден")
