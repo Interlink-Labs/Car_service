@@ -57,6 +57,30 @@ def _slugify(label: str) -> str:
 
 # ------------------------------------------------------------ авторизация ----
 
+@router.post(f"{API}/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED, summary="Регистрация пользователя")
+def register(payload: RegisterRequest) -> AuthResponse:
+    """Публичная регистрация. Для нового клиента создаёт клиентскую карточку."""
+    if repo.find_user(payload.username) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Пользователь с таким логином уже существует")
+    display_name = payload.name or payload.username.capitalize()
+    client = clients_repo.find_by_phone(payload.phone)
+    if client is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Клиент с таким телефоном уже зарегистрирован")
+    client = clients_repo.create_client({"full_name": display_name, "phone": payload.phone})
+    created = repo.create_user(
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        name=display_name,
+        role_code="user",
+        client_id=client["id"],
+    )
+    return AuthResponse(
+        status="registered",
+        user=UserSession(username=created["username"], name=created["name"], role=created["role_code"], client_id=created["client_id"]),
+        token=create_token(created),
+    )
+
+
 @router.post(f"{API}/auth/login", response_model=AuthResponse, summary="Вход в систему")
 def login(credentials: LoginRequest, response: Response) -> AuthResponse:
     user = repo.find_user(credentials.username)
@@ -87,42 +111,6 @@ def login(credentials: LoginRequest, response: Response) -> AuthResponse:
             client_id=user.get("client_id"),
         ),
         token=create_token(user),
-    )
-
-
-@router.post(f"{API}/auth/register", response_model=AuthResponse,
-             status_code=status.HTTP_201_CREATED, summary="Самостоятельная регистрация")
-def register(payload: RegisterRequest) -> AuthResponse:
-    """Самозапись сотрудника: роль ограничена mechanic/manager.
-
-    Администраторов заводит только администратор через POST /user,
-    иначе любой посетитель мог бы выдать себе полный доступ.
-    """
-    if repo.find_user(payload.username) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Пользователь с таким логином уже существует",
-        )
-
-    display_name = payload.name or payload.username.capitalize()
-    client_id = None
-    if payload.phone:
-        client = clients_repo.find_by_phone(payload.phone)
-        if client is None:
-            client = clients_repo.create_client({'full_name': display_name, 'phone': payload.phone})
-        client_id = client['id']
-    repo.create_user(
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        name=display_name,
-        role_code=payload.role,
-        client_id=client_id,
-    )
-
-    return AuthResponse(
-        status="registered",
-        user=UserSession(username=payload.username, name=display_name, role=payload.role, client_id=client_id),
-        token=create_token(repo.find_user(payload.username)),
     )
 
 
@@ -259,6 +247,33 @@ def list_workers(
     _user: dict = Depends(read_required),
 ) -> list[Worker]:
     return [Worker(**worker) for worker in repo.list_workers(search, access_level)]
+
+
+@router.get(f"{API}/worker/filter/access-level/{{access_level}}", response_model=list[Worker], summary="Фильтр сотрудников по уровню доступа")
+def filter_workers_by_access_level(
+    access_level: str,
+    _user: dict = Depends(read_required),
+) -> list[Worker]:
+    """Вернуть сотрудников только с указанной системной ролью."""
+    return [Worker(**row) for row in repo.list_workers_by_access_level(access_level)]
+
+
+@router.get(f"{API}/worker/filter/specialty", response_model=list[Worker], summary="Фильтр по специализации")
+def filter_workers_by_specialty(
+    specialty: str = Query(..., min_length=2, max_length=80),
+    _user: dict = Depends(read_required),
+) -> list[Worker]:
+    """Частичное нечувствительное к регистру совпадение по специализации."""
+    return [Worker(**row) for row in repo.list_workers_by_specialty(specialty)]
+
+
+@router.get(f"{API}/worker/search", response_model=list[Worker], summary="Поиск сотрудников")
+def search_workers(
+    q: str = Query(..., min_length=2, max_length=120),
+    _user: dict = Depends(read_required),
+) -> list[Worker]:
+    """Поиск по ФИО, специализации и коду доступа."""
+    return [Worker(**row) for row in repo.search_workers(q)]
 
 
 @router.get(f"{API}/worker/stats", response_model=WorkersStats, summary="Сводка по сотрудникам")
