@@ -2,47 +2,40 @@
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 import os
-import time
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import repository as repo
 
-_SECRET = os.environ.get("AUTOSERVICE_SECRET", "autoservice-local-change-me").encode()
+_SECRET = os.environ.get("AUTOSERVICE_SECRET", "local-development-only-secret-change-before-deploy-2026")
+if len(_SECRET.encode("utf-8")) < 32:
+    raise RuntimeError("AUTOSERVICE_SECRET должен содержать не менее 32 байт")
+_ALGORITHM = "HS256"
+_TOKEN_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "720"))
 _bearer = HTTPBearer(auto_error=False)
 
 
 def create_token(user: dict) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
-        "uid": int(user["id"]),
+        "sub": str(int(user["id"])),
         "username": user["username"],
         "role": user["role_code"],
-        "exp": int(time.time()) + 60 * 60 * 12,
+        "iat": now,
+        "exp": now + timedelta(minutes=_TOKEN_MINUTES),
     }
-    raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
-    signature = hmac.new(_SECRET, raw.encode(), hashlib.sha256).hexdigest()
-    return f"{raw}.{signature}"
+    return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
 
 
 def _decode(token: str) -> dict | None:
     try:
-        raw, signature = token.split(".", 1)
-        expected = hmac.new(_SECRET, raw.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            return None
-        padded = raw + "=" * (-len(raw) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded))
-        if int(payload.get("exp", 0)) < int(time.time()):
-            return None
-        return payload
-    except (ValueError, TypeError, json.JSONDecodeError, UnicodeError):
+        return jwt.decode(token, _SECRET, algorithms=[_ALGORITHM], options={"require": ["sub", "iat", "exp"]})
+    except (jwt.InvalidTokenError, TypeError, ValueError):
         return None
 
 
@@ -52,7 +45,11 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(_bea
     payload = _decode(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Сессия истекла, войдите снова")
-    user = repo.get_user(int(payload["uid"]))
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный JWT")
+    user = repo.get_user(user_id)
     if not user or not user.get("is_active"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступ к учётной записи отключён")
     return user

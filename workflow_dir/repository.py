@@ -25,6 +25,24 @@ def list_details(search=None):
     return _list('details', search)
 
 
+def list_details_low_stock():
+    conn = get_connection()
+    try:
+        rows = conn.execute('''SELECT * FROM details WHERE is_active=1 AND stock_quantity <= min_stock ORDER BY stock_quantity, name''').fetchall()
+        return rows_to_dicts(rows)
+    finally:
+        conn.close()
+
+
+def list_details_by_price(price_from: float, price_to: float):
+    conn = get_connection()
+    try:
+        rows = conn.execute('SELECT * FROM details WHERE price BETWEEN ? AND ? ORDER BY price, name', (price_from, price_to)).fetchall()
+        return rows_to_dicts(rows)
+    finally:
+        conn.close()
+
+
 def get_service(item_id):
     conn = get_connection()
     try:
@@ -128,7 +146,7 @@ def exists(conn, table, ident):
     return conn.execute(f'SELECT 1 FROM {table} WHERE id=?', (ident,)).fetchone() is not None
 
 
-def list_requests(status=None, search=None):
+def list_requests(status=None, search=None, date_from=None, date_to=None):
     conn = get_connection()
     try:
         sql = '''SELECT r.*, c.full_name AS client_name,
@@ -143,6 +161,12 @@ def list_requests(status=None, search=None):
             value = f'%{search}%'
             conditions.append("(c.full_name LIKE ? OR cars.brand LIKE ? OR cars.model LIKE ? OR cars.plate LIKE ? OR CAST(r.id AS TEXT) LIKE ?)")
             args.extend([value] * 5)
+        if date_from:
+            conditions.append('date(r.created_at) >= date(?)')
+            args.append(date_from)
+        if date_to:
+            conditions.append('date(r.created_at) <= date(?)')
+            args.append(date_to)
         if conditions:
             sql += ' WHERE ' + ' AND '.join(conditions)
         sql += ' ORDER BY r.id DESC'

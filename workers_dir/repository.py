@@ -42,6 +42,18 @@ def list_workers(search: str | None = None, access_level: str | None = None) -> 
     return [dict(row) for row in rows]
 
 
+def list_workers_by_access_level(access_level: str) -> list[dict[str, Any]]:
+    return list_workers(access_level=access_level.strip().lower())
+
+
+def list_workers_by_specialty(specialty: str) -> list[dict[str, Any]]:
+    return list_workers(search=specialty.strip())
+
+
+def search_workers(query: str) -> list[dict[str, Any]]:
+    return list_workers(search=query.strip())
+
+
 def get_worker(worker_id: int) -> dict[str, Any] | None:
     with connect() as conn:
         row = conn.execute(
