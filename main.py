@@ -14,7 +14,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+#from fastapi import FastAPI
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -81,7 +81,7 @@ class NoCacheStaticFiles(StaticFiles):
 app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 
 
-@app.get("/", include_in_schema=False)
+@app.get("/", include_in_schema=True)
 def index() -> FileResponse:
     """Оболочка SPA. Навигация внутри — по hash (#/dashboard, #/workers)."""
     return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
